@@ -31,33 +31,43 @@ body {
     border-color: #0056b3;
 }
 #chat-messages {
-    height: 18rem;
+    height: 16.2rem;
     overflow-y: auto;
+}
+#chat-messages p {
+    margin-bottom: 0.3rem; /* Reduced spacing between query/response */
 }
 @media (max-width: 600px) {
     .container {
-        padding: 8px;
-    }
-    #chat-container {
-        padding: 8px;
-    }
-    .betting-container .card {
         padding: 6px;
     }
+    #chat-container {
+        padding: 6px;
+    }
+    .betting-container .card {
+        padding: 4px;
+    }
     h4 {
-        font-size: 1.1rem;
+        font-size: 1rem;
     }
     p, .btn-link {
-        font-size: 0.85rem;
+        font-size: 0.8rem;
+        margin-bottom: 0.2rem; /* Tighter row spacing for bets */
     }
     .d-flex.justify-content-between {
         flex-wrap: wrap;
     }
     #user-input {
-        max-width: 65% !important;
+        max-width: 60% !important;
     }
     .btn-sm {
-        font-size: 0.8rem;
-        padding: 5px 10px;
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+    .ms-3 {
+        margin-left: 0.75em !important;
+    }
+    #chat-messages p {
+        margin-bottom: 0.2rem; /* Tighter query/response spacing on mobile */
     }
 }

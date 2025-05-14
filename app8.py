@@ -105,10 +105,9 @@ TEAM_ID_TO_NAME = {
 
 # Known series statuses for quick query responses (updated for May 13, 2025)
 KNOWN_SERIES = {
-    "Los Angeles Lakers vs Minnesota Timberwolves 2025-04-30": "Timberwolves lead 3-1",
-    "Minnesota Timberwolves vs Los Angeles Lakers 2025-05-02": "Timberwolves lead 3-1",
-    "Los Angeles Lakers vs Minnesota Timberwolves 2025-05-04": "Timberwolves lead 3-1",
-    "Los Angeles Lakers vs Minnesota Timberwolves 2025-05-06": "Timberwolves win 4-3",
+    "Los Angeles Lakers vs Minnesota Timberwolves 2025-04-30": "Timberwolves win 4-1",
+    "Minnesota Timberwolves vs Los Angeles Lakers 2025-05-02": "Timberwolves win 4-1",
+    "Los Angeles Lakers vs Minnesota Timberwolves 2025-05-04": "Timberwolves win 4-1",
     "Miami Heat vs Cleveland Cavaliers 2025-04-28": "Cavaliers win 4-0",
     "New York Knicks vs Detroit Pistons 2025-04-24": "Knicks lead 2-1",
     "New York Knicks vs Detroit Pistons 2025-04-27": "Knicks lead 3-1",
@@ -129,8 +128,8 @@ KNOWN_SERIES = {
     "Boston Celtics vs Orlando Magic 2025-05-01": "Celtics win 4-1",
     "Oklahoma City Thunder vs Memphis Grizzlies 2025-05-01": "Thunder win 4-0",
     "Oklahoma City Thunder vs Denver Nuggets 2025-05-05": "Series tied 1-1",
-    "New York Knicks vs Boston Celtics 2025-05-12": "Knicks lead 2-1",
-    "New York Knicks vs Boston Celtics 2025-05-14": "Knicks lead 2-1"
+    "New York Knicks vs Boston Celtics 2025-05-12": "Knicks lead 3-1",
+    "New York Knicks vs Boston Celtics 2025-05-14": "Knicks lead 3-1"
 }
 
 # Jinja2 filter to format dates in templates
@@ -145,6 +144,18 @@ def format_date(date_str):
         return date_str
 
 app.jinja_env.filters['format_date'] = format_date
+
+def format_time(timestamp_str):
+    if not timestamp_str or timestamp_str == 'N/A':
+        return 'N/A'
+    try:
+        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S %Z")
+        return timestamp.strftime("%H:%M %Z")
+    except ValueError:
+        logger.debug(f"Invalid timestamp format: {timestamp_str}")
+        return timestamp_str
+
+app.jinja_env.filters['format_time'] = format_time
 
 # Normalize team names using fuzzy matching
 def normalize_team_name(query):
@@ -510,17 +521,49 @@ def deep_search_query(query):
     return "No data available", False
 
 # Process NBA queries
+# Update KNOWN_SERIES (lines ~150–200)
+KNOWN_SERIES = {
+    "Los Angeles Lakers vs Minnesota Timberwolves 2025-04-30": "Timberwolves win 4-1",
+    "Minnesota Timberwolves vs Los Angeles Lakers 2025-05-02": "Timberwolves win 4-1",
+    "Los Angeles Lakers vs Minnesota Timberwolves 2025-05-04": "Timberwolves win 4-1",
+    "Miami Heat vs Cleveland Cavaliers 2025-04-28": "Cavaliers win 4-0",
+    "New York Knicks vs Detroit Pistons 2025-04-24": "Knicks lead 2-1",
+    "New York Knicks vs Detroit Pistons 2025-04-27": "Knicks lead 3-1",
+    "Detroit Pistons vs New York Knicks 2025-04-29": "Knicks lead 3-2",
+    "New York Knicks vs Detroit Pistons 2025-05-01": "Knicks win 4-2",
+    "Orlando Magic vs Boston Celtics 2025-04-29": "Celtics lead 3-2",
+    "LA Clippers vs Denver Nuggets 2025-04-29": "Nuggets lead 3-2",
+    "Denver Nuggets vs LA Clippers 2025-05-01": "Series tied 3-3",
+    "LA Clippers vs Denver Nuggets 2025-05-03": "Nuggets win 4-3",
+    "Houston Rockets vs Golden State Warriors 2025-05-02": "Series tied 3-3",
+    "Golden State Warriors vs Houston Rockets 2025-05-04": "Warriors win 4-3",
+    "New York Knicks vs Boston Celtics 2025-05-05": "Knicks lead 2-0",
+    "Indiana Pacers vs Cleveland Cavaliers 2025-05-04": "Pacers lead 2-0",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-06": "Warriors lead 1-0",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-08": "Series tied 1-1",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-10": "Timberwolves lead 2-1",
+    "Indiana Pacers vs Milwaukee Bucks 2025-05-02": "Pacers win 4-1",
+    "Boston Celtics vs Orlando Magic 2025-05-01": "Celtics win 4-1",
+    "Oklahoma City Thunder vs Memphis Grizzlies 2025-05-01": "Thunder win 4-0",
+    "Oklahoma City Thunder vs Denver Nuggets 2025-05-05": "Series tied 1-1",
+    "New York Knicks vs Boston Celtics 2025-05-12": "Knicks lead 3-1",
+    "New York Knicks vs Boston Celtics 2025-05-14": "Knicks lead 3-1"
+}
+
+# Update search_nba_data (lines ~600–700)
 def search_nba_data(query, user_teams, query_timestamp):
     logger.debug(f"user_teams: {user_teams}")
     current_date = datetime.now(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
     current_dt = datetime.strptime(current_date, "%Y-%m-%d")
 
+    # Prioritize DeepSearch for real-time data
     if user_teams:
         team = user_teams[0]
         grok_response, is_grok_search = deep_search_query(query)
         if grok_response and "No data available" not in grok_response:
             return grok_response, is_grok_search
 
+    # Fallback to KNOWN_SERIES
     year_match = re.search(r'\b(19|20)\d{2}\b', query)
     if year_match and any(word in query.lower() for word in ["won", "champion", "finals"]):
         year = int(year_match.group())
@@ -562,6 +605,11 @@ def search_nba_data(query, user_teams, query_timestamp):
             series_key = series_keys[0]
             status = KNOWN_SERIES.get(series_key, "No data available")
             logger.debug(f"Using known series for {team}: {series_key}")
+            if team == "Boston Celtics":
+                series_key = "New York Knicks vs Boston Celtics 2025-05-12"
+                if series_key in KNOWN_SERIES:
+                    response = f"The Celtics lost to the Knicks, 121-113, on 2025-05-12, Game 4. Knicks lead 3-1."
+                    return response, False
             if team == "Golden State Warriors":
                 series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
                 if series_key in KNOWN_SERIES:
@@ -571,6 +619,11 @@ def search_nba_data(query, user_teams, query_timestamp):
                 series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
                 if series_key in KNOWN_SERIES:
                     response = f"The Timberwolves won against the Warriors on 2025-05-10, 102-97, Game 3. Anthony Edwards led with 23 points. Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
+            if team == "Los Angeles Lakers":
+                series_key = "Los Angeles Lakers vs Minnesota Timberwolves 2025-04-30"
+                if series_key in KNOWN_SERIES:
+                    response = f"The Lakers lost to the Timberwolves, 103-96, on 2025-04-30, Game 5. Rudy Gobert had 27 points and 24 rebounds for Minnesota. Luka Dončić led the Lakers with 28 points. Timberwolves won the series 4-1."
                     return response, False
 
     logger.debug(f"Routing query to DeepSearch: {query}")
