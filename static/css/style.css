@@ -1,0 +1,63 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+}
+.container {
+    max-width: 1200px;
+}
+#chat-container {
+    border: 2px solid orange;
+    border-radius: 10px;
+    background-color: #fff;
+}
+.betting-container .card {
+    border: 2px solid orange;
+    border-radius: 10px;
+    background-color: #fff;
+}
+.betting-container h4 {
+    color: #333;
+}
+.team-name {
+    color: green;
+    font-weight: bold;
+}
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+}
+.btn-primary:hover {
+    background-color: #0056b3;
+    border-color: #0056b3;
+}
+#chat-messages {
+    height: 18rem;
+    overflow-y: auto;
+}
+@media (max-width: 600px) {
+    .container {
+        padding: 8px;
+    }
+    #chat-container {
+        padding: 8px;
+    }
+    .betting-container .card {
+        padding: 6px;
+    }
+    h4 {
+        font-size: 1.1rem;
+    }
+    p, .btn-link {
+        font-size: 0.85rem;
+    }
+    .d-flex.justify-content-between {
+        flex-wrap: wrap;
+    }
+    #user-input {
+        max-width: 65% !important;
+    }
+    .btn-sm {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+    }
+}
