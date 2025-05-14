@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
-            chatMessages.innerHTML += `<p><strong>Grok:</strong> ${data.grok}</p>`;
+            chatMessages.innerHTML += `<p><strong>Grok:</strong> <span class="team-name">${data.grok}</span></p>`;
             chatMessages.scrollTop = chatMessages.scrollHeight;
         } catch (error) {
             console.error('Error:', error);

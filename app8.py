@@ -12,18 +12,18 @@ import statistics
 
 # Initialize Flask app with session support
 app = Flask(__name__)
-app.secret_key = 'nba-chat2-secret-key-2025'  # Secret key for session encryption
-app.permanent_session_lifetime = timedelta(minutes=30)  # Session lasts 30 minutes
+app.secret_key = 'nba-chat2-secret-key-2025'
+app.permanent_session_lifetime = timedelta(minutes=30)
 
 # Configure logging for Render environment
-logger = logging.getLogger(__name__)  # Logger for this module
-LOG_FILE = 'nba_chat2_app8.log'  # Updated log file name
+logger = logging.getLogger(__name__)
+LOG_FILE = 'nba_chat2_app8.log'
 logging.basicConfig(
-    level=logging.DEBUG,  # Log all debug and higher messages
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Log format with timestamp, level, message
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),  # Log to console
-        logging.FileHandler(LOG_FILE, mode='a')  # Append to log file
+        logging.StreamHandler(),
+        logging.FileHandler(LOG_FILE, mode='a')
     ]
 )
 logger.debug(f"Logging initialized to file: {LOG_FILE}")
@@ -103,7 +103,7 @@ TEAM_ID_TO_NAME = {
     1610612765: "Detroit Pistons",
 }
 
-# Known series statuses for quick query responses (updated for May 9, 2025)
+# Known series statuses for quick query responses (updated for May 13, 2025)
 KNOWN_SERIES = {
     "Los Angeles Lakers vs Minnesota Timberwolves 2025-04-30": "Timberwolves lead 3-1",
     "Minnesota Timberwolves vs Los Angeles Lakers 2025-05-02": "Timberwolves lead 3-1",
@@ -122,11 +122,15 @@ KNOWN_SERIES = {
     "Golden State Warriors vs Houston Rockets 2025-05-04": "Warriors win 4-3",
     "New York Knicks vs Boston Celtics 2025-05-05": "Knicks lead 2-0",
     "Indiana Pacers vs Cleveland Cavaliers 2025-05-04": "Pacers lead 2-0",
-    "Golden State Warriors vs Minnesota Timberwolves 2025-05-06": "Series tied 1-1",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-06": "Warriors lead 1-0",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-08": "Series tied 1-1",
+    "Golden State Warriors vs Minnesota Timberwolves 2025-05-10": "Timberwolves lead 2-1",
     "Indiana Pacers vs Milwaukee Bucks 2025-05-02": "Pacers win 4-1",
     "Boston Celtics vs Orlando Magic 2025-05-01": "Celtics win 4-1",
     "Oklahoma City Thunder vs Memphis Grizzlies 2025-05-01": "Thunder win 4-0",
     "Oklahoma City Thunder vs Denver Nuggets 2025-05-05": "Series tied 1-1",
+    "New York Knicks vs Boston Celtics 2025-05-12": "Knicks lead 2-1",
+    "New York Knicks vs Boston Celtics 2025-05-14": "Knicks lead 2-1"
 }
 
 # Jinja2 filter to format dates in templates
@@ -180,7 +184,7 @@ def parse_query_date(query):
         return next_saturday.strftime("%Y-%m-%d")
     elif "today" in query_lower or "tonight" in query_lower:
         return current_date.strftime("%Y-%m-%d")
-    return current_date.strftime("%Y-%m-%d")  # Default to current date
+    return current_date.strftime("%Y-%m-%d")
 
 # Fetch betting odds from Odds API, deduplicating by game ID
 def fetch_betting_odds(date_str):
@@ -201,7 +205,6 @@ def fetch_betting_odds(date_str):
         response.raise_for_status()
         games = response.json()
         
-        # Collect odds by unique game ID
         bets_dict = {}
         seen_game_ids = set()
         for game in games:
@@ -221,7 +224,6 @@ def fetch_betting_odds(date_str):
             game_key = f"{teams[0]} vs. {teams[1]}_{commence_time}"
             bets_dict[game_key] = {}
             
-            # Collect odds from all bookmakers
             for bookmaker in game.get('bookmakers', []):
                 for market in bookmaker.get('markets', []):
                     if market['key'] == 'h2h':
@@ -232,7 +234,6 @@ def fetch_betting_odds(date_str):
                                 bets_dict[game_key][team] = []
                             bets_dict[game_key][team].append(price)
         
-        # Format bets with median odds
         bets = []
         for game_key, teams in bets_dict.items():
             game_name = game_key.rsplit('_', 1)[0]
@@ -289,7 +290,6 @@ def update_popular_bets():
             }
         ]
     
-    # Deduplicate bets
     unique_bets = {}
     for bet in all_odds:
         game_key = f"{bet['game']}_{bet['team']}_{bet['date']}"
@@ -297,7 +297,6 @@ def update_popular_bets():
             unique_bets[game_key] = bet
     popular_odds = list(unique_bets.values())
     
-    # Save to JSON file
     popular_bets = {
         'last_updated': current_timestamp,
         'bets': popular_odds
@@ -349,7 +348,6 @@ def cron_update_popular_bets():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # Route for rendering the main page
-
 @app.route("/")
 def index():
     try:
@@ -360,15 +358,12 @@ def index():
 
         popular_bets, last_bets_update = load_popular_bets()
         popular_bets_formatted = []
-        seen_games = set()
         seen_teams = set()
         
-        # Deduplicate bets and ensure both teams
         for bet in popular_bets:
             try:
-                game_key = f"{bet['game']}_{bet['team']}_{bet['date']}"
-                if game_key not in seen_games and bet['team'] not in seen_teams:
-                    seen_games.add(game_key)
+                game_key = f"{bet['game']}_{bet['date']}_{bet['team']}"
+                if bet['team'] not in seen_teams:
                     seen_teams.add(bet['team'])
                     bet_info = {
                         "game": bet['game'],
@@ -380,21 +375,16 @@ def index():
             except Exception as e:
                 logger.debug(f"Skipping invalid bet data: {str(e)}, bet: {bet}")
                 continue
-        
-        # Limit to two bets (one per team)
+
         final_bets = []
-        game_groups = {}
+        seen_games = set()
         for bet in popular_bets_formatted:
             game_date = f"{bet['game']}_{bet['date']}"
-            if game_date not in game_groups:
-                game_groups[game_date] = []
-            game_groups[game_date].append(bet)
-        
-        for game_date, bets in game_groups.items():
-            if len(bets) >= 2:
-                final_bets.extend(bets[:2])  # Take first two bets (one per team)
-            else:
-                final_bets.append(bets[0])
+            if game_date not in seen_games:
+                seen_games.add(game_date)
+                final_bets.append(bet)
+            if len(final_bets) >= 2:
+                break
 
         return render_template(
             "index.html",
@@ -474,11 +464,11 @@ def deep_search_query(query):
         f"You’re an NBA stats expert. Provide concise, data-driven responses using verified 2024-25 season data from NBA.com or ESPN. "
         f"Current date: {current_date_str}. For past week queries, check games from {current_date_str} back 7 days; exclude future dates. "
         f"For future games, verify dates and times with NBA.com or ESPN in PDT, ensuring no games are missed due to playoff status. "
-        f"For today's games (May 9, 2025), use available data. "
+        f"For today's games (May 13, 2025), use available data. "
         f"For series status, provide current playoff standings (e.g., 'Team A leads 3-1') for the 2024-25 NBA playoffs. "
         f"Known series: Lakers vs. Timberwolves, ended 2025-05-06 (Timberwolves win 4-3); "
-        f"Knicks vs. Celtics, Game 2 on 2025-05-07 (Knicks lead 2-0); Pacers vs. Cavaliers, Game 2 on 2025-05-06 (Pacers lead 2-0); "
-        f"Thunder vs. Nuggets, Game 2 on 2025-05-07 (Series tied 1-1); Warriors vs. Timberwolves, Game 2 on 2025-05-07 (Series tied 1-1). "
+        f"Knicks vs. Celtics, Game 4 on 2025-05-12 (Knicks lead 2-1); Pacers vs. Cavaliers, Game 4 on 2025-05-11 (Pacers lead 2-1); "
+        f"Thunder vs. Nuggets, Game 4 on 2025-05-11 (Series tied 2-2); Warriors vs. Timberwolves, Game 3 on 2025-05-10 (Timberwolves lead 2-1). "
         f"Past series: Heat vs. Cavaliers, ended 2025-04-28 (Cavaliers win 4-0); Clippers vs. Nuggets, ended 2025-05-03 (Nuggets win 4-3); "
         f"Knicks vs. Pistons, ended 2025-05-01 (Knicks win 4-2); Celtics vs. Magic, ended 2025-05-01 (Celtics win 4-1); "
         f"Pacers vs. Bucks, ended 2025-05-02 (Pacers win 4-1); Thunder vs. Grizzlies, ended 2025-05-01 (Thunder win 4-0); "
@@ -486,11 +476,9 @@ def deep_search_query(query):
         f"For player stats (e.g., LeBron James' highest scoring game), use verified NBA data (e.g., LeBron's career-high is 61 points on 2014-03-03 vs. Charlotte). "
         f"For season scoring leaders (e.g., Knicks), use 2024-25 season data (e.g., Jalen Brunson, 28.7 PPG). "
         f"For NBA Finals predictions, use current playoff performance and betting odds (Thunder +150, Celtics +190). "
-        f"For queries about 'next Friday' games, use May 9, 2025, and include: Pacers vs. Cavaliers (Game 3, 7:30 PM PDT, ESPN; Pacers lead 2-0); "
-        f"Thunder vs. Nuggets (Game 3, 10:00 PM PDT, ESPN; Series tied 1-1). "
-        f"For 'weekend' games, use May 10-11, 2025, and include: May 10: Knicks vs. Celtics (Game 3, 3:30 PM PDT, ABC), Timberwolves vs. Warriors (Game 3, 8:30 PM PDT, ABC); "
-        f"May 11: Pacers vs. Cavaliers (Game 4, 8:00 PM PDT, TNT), Thunder vs. Nuggets (Game 4, 3:30 PM PDT, ABC). "
-        f"Exclude games from other dates in the response unless explicitly requested. Max 600 chars."
+        f"For queries about 'next Friday' games, use May 16, 2025, and check NBA.com for scheduled games. "
+        f"For 'weekend' games, use May 17-18, 2025, and verify with NBA.com. "
+        f"Exclude games from other dates unless requested. Max 600 chars."
     )
     payload = {
         "model": "grok-beta",
@@ -527,14 +515,12 @@ def search_nba_data(query, user_teams, query_timestamp):
     current_date = datetime.now(pytz.timezone('US/Pacific')).strftime("%Y-%m-%d")
     current_dt = datetime.strptime(current_date, "%Y-%m-%d")
 
-    # Try DeepSearch first for real-time data
     if user_teams:
         team = user_teams[0]
         grok_response, is_grok_search = deep_search_query(query)
         if grok_response and "No data available" not in grok_response:
             return grok_response, is_grok_search
 
-    # Fallback to KNOWN_SERIES for specific queries
     year_match = re.search(r'\b(19|20)\d{2}\b', query)
     if year_match and any(word in query.lower() for word in ["won", "champion", "finals"]):
         year = int(year_match.group())
@@ -552,25 +538,40 @@ def search_nba_data(query, user_teams, query_timestamp):
         )
         logger.debug(f"Series keys for {team}: {series_keys}")
         if "next" in query.lower():
-            # Example: Handle team-specific next games
             if team == "Boston Celtics":
-                series_key = "New York Knicks vs Boston Celtics 2025-05-05"
+                series_key = "New York Knicks vs Boston Celtics 2025-05-14"
                 if series_key in KNOWN_SERIES:
-                    logger.debug(f"Using known series for Celtics: {series_key}")
-                    response = f"Boston Celtics play New York Knicks on 2025-05-12, 7:30 PM PDT (Game 4). Series: Knicks lead 2-1."
+                    response = f"Boston Celtics play New York Knicks on 2025-05-14, 6:00 PM PDT (Game 5). Series: {KNOWN_SERIES[series_key]}."
                     return response, False
-            # Add other teams as needed
+            if team == "New York Knicks":
+                series_key = "New York Knicks vs Boston Celtics 2025-05-14"
+                if series_key in KNOWN_SERIES:
+                    response = f"New York Knicks play Boston Celtics on 2025-05-14, 6:00 PM PDT (Game 5). Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
+            if team == "Golden State Warriors":
+                series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
+                if series_key in KNOWN_SERIES:
+                    response = f"Golden State Warriors play Minnesota Timberwolves on 2025-05-13, 8:30 PM PDT (Game 4). Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
+            if team == "Minnesota Timberwolves":
+                series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
+                if series_key in KNOWN_SERIES:
+                    response = f"Minnesota Timberwolves play Golden State Warriors on 2025-05-13, 8:30 PM PDT (Game 4). Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
         if "last" in query.lower() and series_keys:
             series_key = series_keys[0]
             status = KNOWN_SERIES.get(series_key, "No data available")
             logger.debug(f"Using known series for {team}: {series_key}")
             if team == "Golden State Warriors":
-                response = f"The Warriors lost their last game against the Timberwolves on 2025-05-10, 102-97, Game 3. Series: Timberwolves lead 2-1."
-                return response, False
+                series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
+                if series_key in KNOWN_SERIES:
+                    response = f"The Warriors lost to the Timberwolves on 2025-05-10, 102-97, Game 3. Buddy Hield led with 24 points; Stephen Curry was sidelined with a hamstring injury. Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
             if team == "Minnesota Timberwolves":
-                response = f"The Timberwolves won their last game against the Warriors on 2025-05-10, 102-97, Game 3. Series: Timberwolves lead 2-1."
-                return response, False
-            # Add other teams as needed
+                series_key = "Golden State Warriors vs Minnesota Timberwolves 2025-05-10"
+                if series_key in KNOWN_SERIES:
+                    response = f"The Timberwolves won against the Warriors on 2025-05-10, 102-97, Game 3. Anthony Edwards led with 23 points. Series: {KNOWN_SERIES[series_key]}."
+                    return response, False
 
     logger.debug(f"Routing query to DeepSearch: {query}")
     grok_response, is_grok_search = deep_search_query(query)
@@ -610,8 +611,8 @@ def get_bets(query, grok_response):
             bet_info = {
                 "game": game['game'],
                 "date": game.get('date', 'N/A'),
-                "moneyline": {game['team']: game['odds']},
-                "teams": game['game'].split(' vs. ')
+                "team": game['team'],
+                "odds": game['odds']
             }
             bets.append(bet_info)
         except Exception as e:
@@ -623,3 +624,4 @@ def get_bets(query, grok_response):
 # Run Flask app locally
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port=5000, debug=True)
+    #updated 0513742PM
